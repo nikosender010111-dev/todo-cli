@@ -1,0 +1,277 @@
+"""Модуль тестирования для Todo CLI."""
+
+import unittest
+import os
+import json
+import tempfile
+from datetime import datetime
+
+
+from todo_cli import (
+    add_task,
+    mark_done,
+    delete_task,
+    clear_all,
+    filter_tasks,
+    validate_task_id,
+    save_tasks,
+    load_tasks,
+    backup_tasks,
+    TaskNotFoundError
+)
+
+
+class TestTodoApp(unittest.TestCase):
+    """Тестовый класс для проверки функциональности Todo CLI."""
+
+    def setUp(self):
+        """Подготовка перед каждым тестом."""
+        self.test_filename = "test_tasks_temp.json"
+
+    def tearDown(self):
+        """Очистка после каждого теста."""
+
+        if os.path.exists(self.test_filename):
+            os.remove(self.test_filename)
+
+        for file in os.listdir("."):
+            if file.startswith("test_tasks_temp.json.backup_"):
+                os.remove(file)
+
+    # ==================== ТЕСТЫ МОДУЛЯ LOGIC ====================
+
+    def test_add_task(self):
+        """Тест добавления задачи."""
+        tasks = []
+        tasks = add_task(tasks, "Новая задача", "Описание задачи")
+        
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["title"], "Новая задача")
+        self.assertEqual(tasks[0]["description"], "Описание задачи")
+        self.assertEqual(tasks[0]["id"], 1)
+        self.assertFalse(tasks[0]["done"])
+        self.assertIn("created_at", tasks[0])
+
+    def test_add_multiple_tasks(self):
+        """Тест добавления нескольких задач."""
+        tasks = []
+        tasks = add_task(tasks, "Задача 1")
+        tasks = add_task(tasks, "Задача 2")
+        tasks = add_task(tasks, "Задача 3")
+        
+        self.assertEqual(len(tasks), 3)
+        self.assertEqual(tasks[0]["id"], 1)
+        self.assertEqual(tasks[1]["id"], 2)
+        self.assertEqual(tasks[2]["id"], 3)
+
+    def test_mark_done(self):
+        """Тест отметки задачи как выполненной."""
+        tasks = [{"id": 1, "title": "Тест", "done": False}]
+        tasks, success = mark_done(tasks, 1)
+        
+        self.assertTrue(success)
+        self.assertTrue(tasks[0]["done"])
+
+    def test_mark_done_already_done(self):
+        """Тест отметки уже выполненной задачи."""
+        tasks = [{"id": 1, "title": "Тест", "done": True}]
+        tasks, success = mark_done(tasks, 1)
+        
+        self.assertFalse(success)
+        self.assertTrue(tasks[0]["done"])
+
+    def test_mark_done_not_found(self):
+        """Тест отметки несуществующей задачи."""
+        tasks = [{"id": 1, "title": "Тест", "done": False}]
+        tasks, success = mark_done(tasks, 999)
+        
+        self.assertFalse(success)
+
+    def test_delete_task(self):
+        """Тест удаления задачи."""
+        tasks = [{"id": 1, "title": "Тест", "done": False}]
+        tasks, success = delete_task(tasks, 1)
+        
+        self.assertTrue(success)
+        self.assertEqual(len(tasks), 0)
+
+    def test_delete_task_not_found(self):
+        """Тест удаления несуществующей задачи."""
+        tasks = [{"id": 1, "title": "Тест", "done": False}]
+        tasks, success = delete_task(tasks, 999)
+        
+        self.assertFalse(success)
+        self.assertEqual(len(tasks), 1)
+
+    def test_clear_all(self):
+        """Тест очистки всех задач."""
+        tasks = [{"id": 1}, {"id": 2}, {"id": 3}]
+        result = clear_all(tasks)
+        
+        self.assertEqual(len(result), 0)
+
+    # ==================== ТЕСТЫ ФИЛЬТРАЦИИ ====================
+
+    def test_filter_no_status(self):
+        """Тест фильтрации без указания статуса."""
+        tasks = [
+            {"id": 1, "done": False},
+            {"id": 2, "done": True},
+            {"id": 3, "done": False}
+        ]
+        result = filter_tasks(tasks, None)
+        
+        self.assertEqual(len(result), 3)
+
+    def test_filter_pending(self):
+        """Тест фильтрации активных задач."""
+        tasks = [
+            {"id": 1, "done": False},
+            {"id": 2, "done": True},
+            {"id": 3, "done": False}
+        ]
+        result = filter_tasks(tasks, "pending")
+        
+        self.assertEqual(len(result), 2)
+        self.assertFalse(result[0]["done"])
+        self.assertFalse(result[1]["done"])
+
+    def test_filter_done(self):
+        """Тест фильтрации выполненных задач."""
+        tasks = [
+            {"id": 1, "done": False},
+            {"id": 2, "done": True},
+            {"id": 3, "done": False}
+        ]
+        result = filter_tasks(tasks, "done")
+        
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0]["done"])
+
+    # ==================== ТЕСТЫ ВАЛИДАЦИИ ====================
+
+    def test_validate_task_id_valid(self):
+        """Тест валидации существующего ID."""
+        tasks = [{"id": 1, "title": "Тест"}, {"id": 2, "title": "Тест 2"}]
+        
+        self.assertTrue(validate_task_id(tasks, 1))
+        self.assertTrue(validate_task_id(tasks, 2))
+
+    def test_validate_task_id_invalid(self):
+        """Тест валидации несуществующего ID."""
+        tasks = [{"id": 1, "title": "Тест"}]
+        
+        with self.assertRaises(TaskNotFoundError):
+            validate_task_id(tasks, 999)
+
+    # ==================== ТЕСТЫ ФАЙЛОВОГО МОДУЛЯ ====================
+
+    def test_save_and_load_tasks(self):
+        """Тест сохранения и загрузки задач."""
+        tasks = [{"id": 1, "title": "Тест", "done": False}]
+        
+        save_tasks(tasks, self.test_filename)
+        loaded = load_tasks(self.test_filename)
+        
+        self.assertEqual(loaded, tasks)
+
+    def test_load_nonexistent_file(self):
+        """Тест загрузки несуществующего файла."""
+        if os.path.exists(self.test_filename):
+            os.remove(self.test_filename)
+        
+        tasks = load_tasks(self.test_filename)
+        
+        self.assertEqual(tasks, [])
+
+    def test_load_invalid_json(self):
+        """Тест загрузки повреждённого JSON."""
+        with open(self.test_filename, "w", encoding="utf-8") as f:
+            f.write("это не json {")
+        
+        with self.assertRaises(IOError):
+            load_tasks(self.test_filename)
+
+    def test_backup_creation(self):
+        """Тест создания бэкапа."""
+        tasks = [{"id": 1, "title": "Тест"}]
+        save_tasks(tasks, self.test_filename)
+        
+        backup_name = backup_tasks(self.test_filename)
+        
+        self.assertTrue(os.path.exists(backup_name))
+        
+
+        with open(backup_name, "r", encoding="utf-8") as f:
+            backup_data = json.load(f)
+        self.assertEqual(backup_data, tasks)
+
+    def test_backup_no_file(self):
+        """Тест создания бэкапа при отсутствии файла."""
+        if os.path.exists(self.test_filename):
+            os.remove(self.test_filename)
+        
+        result = backup_tasks(self.test_filename)
+        
+        self.assertEqual(result, "")
+
+    # ==================== ИНТЕГРАЦИОННЫЕ ТЕСТЫ ====================
+
+    def test_full_crud_workflow(self):
+        """Тест полного CRUD-цикла."""
+        tasks = []
+        
+
+        tasks = add_task(tasks, "Задача 1", "Описание 1")
+        tasks = add_task(tasks, "Задача 2")
+        self.assertEqual(len(tasks), 2)
+        
+
+        self.assertEqual(tasks[0]["title"], "Задача 1")
+        self.assertEqual(tasks[1]["title"], "Задача 2")
+        
+
+        tasks, success = mark_done(tasks, 1)
+        self.assertTrue(success)
+        self.assertTrue(tasks[0]["done"])
+        
+
+        tasks, success = delete_task(tasks, 2)
+        self.assertTrue(success)
+        self.assertEqual(len(tasks), 1)
+        
+
+        tasks = clear_all(tasks)
+        self.assertEqual(len(tasks), 0)
+
+
+def run_tests():
+    """Запуск всех тестов с выводом результатов."""
+    print("\n" + "=" * 70)
+    print("ЗАПУСК ТЕСТОВ ДЛЯ TODO CLI")
+    print("=" * 70 + "\n")
+    
+
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromTestCase(TestTodoApp)
+    
+
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+
+    print("\n" + "=" * 70)
+    print("РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ")
+    print("=" * 70)
+    print(f" Пройдено: {result.testsRun - len(result.failures) - len(result.errors)}")
+    print(f" Ошибок: {len(result.errors)}")
+    print(f" Падений: {len(result.failures)}")
+    print(f" Всего тестов: {result.testsRun}")
+    print("=" * 70)
+    
+    return result.wasSuccessful()
+
+
+if __name__ == "__main__":
+    success = run_tests()
+    sys.exit(0 if success else 1)
