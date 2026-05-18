@@ -12,23 +12,20 @@
 ## Установка и запуск
 
 ```bash
-
-
-git clone <ссылка_на_репозиторий>
 cd todo-cli
 python todo_cli.py --help
-
+```
 
 Команды:
 
 
-|Команда:	         | Пример:                                        |
+|Команда:	               | Пример:                                        |
 |------------------------|------------------------------------------------|
-| add	                 | python todo_cli.py add --title "Купить молоко" |
+| add	                   | python todo_cli.py add --title "Купить молоко" |
 | list	                 | python todo_cli.py list                        |
 | list --status done     | python todo_cli.py list --status done          |
 | list --status pending  | python todo_cli.py list --status pending       |
-| done --id	         | python todo_cli.py done --id 1                 |
+| done --id	             | python todo_cli.py done --id 1                 |
 | delete --id            | python todo_cli.py delete --id 1               |
 | clear                  | python todo_cli.py clear                       |
 
@@ -36,21 +33,18 @@ python todo_cli.py --help
 Тестирование:
 
 ```bash
-
-
 python test_todo.py
-
+```
 
 Git-ветки:
 
 
 ```bash
-
-
 git checkout -b feature/interface
 git checkout -b feature/file-handler
 git checkout -b feature/logic
 git checkout -b feature/error-handler
+```
 
 
 Pull Request процесс:
