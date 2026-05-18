@@ -12,6 +12,7 @@
 ## Установка и запуск
 
 ```bash
+git clone https://github.com/nikosender010111-dev/todo-cli.git
 cd todo-cli
 python todo_cli.py --help
 ```
